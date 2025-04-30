@@ -1,11 +1,14 @@
 // lib/main.dart
+
 import 'package:flutter/material.dart';
 import 'ui/home_screen.dart';
 
-void main() => runApp(const GameHubApp());
+void main() {
+  runApp(const BoardGamesApp());
+}
 
-class GameHubApp extends StatelessWidget {
-  const GameHubApp({Key? key}) : super(key: key);
+class BoardGamesApp extends StatelessWidget {
+  const BoardGamesApp({Key? key}) : super(key: key);
 
   @override
   Widget build(BuildContext context) {
