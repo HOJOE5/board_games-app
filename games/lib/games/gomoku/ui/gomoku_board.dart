@@ -7,7 +7,19 @@ import '../ai/forbidden_moves.dart';
 import '../ai/learning.dart';
 import '../ai/pattern_learning.dart';
 
-/// 오목 게임 화면 위젯
+/// AI 점수 저장 구조
+class ScoreStep {
+  final List<List<double>> baseScores;
+  final List<List<double>> riskScores;
+  final List<List<double>> totalScores;
+  ScoreStep({
+    required this.baseScores,
+    required this.riskScores,
+    required this.totalScores,
+  });
+}
+
+/// 오목 게임 화면
 class GomokuBoard extends StatefulWidget {
   final int initialLevel;
   const GomokuBoard({Key? key, required this.initialLevel}) : super(key: key);
@@ -19,24 +31,33 @@ class GomokuBoard extends StatefulWidget {
 class _GomokuBoardState extends State<GomokuBoard> {
   static const int boardSize = 10;
   late int aiLevel;
-  List<List<String>> board = List.generate(
-    boardSize,
-    (_) => List.filled(boardSize, ''),
-  );
+  late List<List<String>> board;
   String gameRule = '';
   String currentPlayer = '';
   List<Move> episode = [];
+  List<ScoreStep> scoreSteps = [];
+
+  // 복기/학습 시각화 상태
+  bool isReplaying = false;
+  int replayStep = 0;
+  int aiReplayIndex = 0;
+  late List<List<bool>> learnHighlights;
 
   @override
   void initState() {
     super.initState();
     aiLevel = widget.initialLevel;
+    board = List.generate(boardSize, (_) => List.filled(boardSize, ''));
+    learnHighlights = List.generate(
+      boardSize,
+      (_) => List.filled(boardSize, false),
+    );
     WidgetsBinding.instance.addPostFrameCallback(
       (_) => showRuleSelectionDialog(),
     );
   }
 
-  /// 게임 룰 선택 다이얼로그
+  /// 게임 룰 선택
   void showRuleSelectionDialog() {
     showDialog(
       context: context,
@@ -67,7 +88,7 @@ class _GomokuBoardState extends State<GomokuBoard> {
     );
   }
 
-  /// 선공/후공 선택 다이얼로그
+  /// 선공/후공 선택
   void showFirstMoveDialog() {
     showDialog(
       context: context,
@@ -99,8 +120,7 @@ class _GomokuBoardState extends State<GomokuBoard> {
 
   /// 사용자 수 처리
   void handleTap(int x, int y) {
-    if (board[x][y] != '' || currentPlayer != 'X') return;
-    // 사용자 수 기록
+    if (isReplaying || board[x][y] != '' || currentPlayer != 'X') return;
     episode.add(
       Move(stateKey: hashBoard(board), point: Point<int>(x, y), player: 'X'),
     );
@@ -113,7 +133,7 @@ class _GomokuBoardState extends State<GomokuBoard> {
     setState(() {
       board[x][y] = 'X';
       if (_checkWin(x, y, 'X')) {
-        _onAIDefeat();
+        _showLearnDialog('X');
       } else {
         currentPlayer = 'O';
         Future.delayed(const Duration(milliseconds: 500), _aiMove);
@@ -121,62 +141,184 @@ class _GomokuBoardState extends State<GomokuBoard> {
     });
   }
 
-  /// AI 수 선택: 기본 휴리스틱 + 패턴 위험도 반영
+  /// AI 수 선택 및 점수 계산
   void _aiMove() {
+    final baseScores = List.generate(
+      boardSize,
+      (_) => List.filled(boardSize, 0.0),
+    );
+    final riskScores = List.generate(
+      boardSize,
+      (_) => List.filled(boardSize, 0.0),
+    );
+    final totalScores = List.generate(
+      boardSize,
+      (_) => List.filled(boardSize, 0.0),
+    );
     double bestScore = double.negativeInfinity;
-    Point<num>? bestPoint;
-    // 0: 빈칸, 1: 사용자, 2: AI 형태로 변환
+    Point<int>? bestPoint;
     final keyBoard =
         board
-            .map(
-              (row) =>
-                  row.map((c) => c == '' ? 0 : (c == 'X' ? 1 : 2)).toList(),
-            )
+            .map((r) => r.map((c) => c == '' ? 0 : (c == 'X' ? 1 : 2)).toList())
             .toList();
+    final hc = min(1.0, aiLevel / 10);
+    final rc = max(0.0, (aiLevel - 1) / 9);
+    final rnd = Random();
 
-    for (int i = 0; i < boardSize; i++) {
-      for (int j = 0; j < boardSize; j++) {
-        if (board[i][j] != '') continue;
-        if (forbiddenMoves[hashBoard(board)]?.contains(Point<int>(i, j)) ==
-            true)
+    for (var i = 0; i < boardSize; i++) {
+      for (var j = 0; j < boardSize; j++) {
+        if (board[i][j] != '' ||
+            forbiddenMoves[hashBoard(board)]?.contains(Point<int>(i, j)) ==
+                true)
           continue;
-
-        final baseScore = _evaluateMove(i, j).toDouble();
-        final risk = getPatternRisk(i, j, keyBoard);
-        final total = baseScore - risk;
-
-        if (total > bestScore) {
-          bestScore = total;
-          bestPoint = Point<num>(i, j);
+        final b = _evaluateMove(i, j).toDouble();
+        final r = getPatternRisk(i, j, keyBoard);
+        var t = b * hc - r * rc;
+        if (aiLevel == 1 && rnd.nextBool()) t = rnd.nextDouble() * 100;
+        baseScores[i][j] = b;
+        riskScores[i][j] = r;
+        totalScores[i][j] = t;
+        if (t > bestScore) {
+          bestScore = t;
+          bestPoint = Point<int>(i, j);
         }
       }
     }
-
-    if (bestPoint != null) {
-      final px = bestPoint.x.toInt();
-      final py = bestPoint.y.toInt();
-      // AI 수 기록
-      episode.add(
-        Move(
-          stateKey: hashBoard(board),
-          point: Point<int>(px, py),
-          player: 'O',
-        ),
-      );
-      setState(() {
-        board[px][py] = 'O';
-        if (_checkWin(px, py, 'O')) {
-          _showWinMessage('O');
-        } else {
-          currentPlayer = 'X';
-        }
-      });
-    } else {
+    scoreSteps.add(
+      ScoreStep(
+        baseScores: baseScores,
+        riskScores: riskScores,
+        totalScores: totalScores,
+      ),
+    );
+    if (bestPoint == null) {
       setState(() => currentPlayer = 'X');
+      return;
     }
+    final px = bestPoint.x;
+    final py = bestPoint.y;
+    episode.add(
+      Move(stateKey: hashBoard(board), point: Point<int>(px, py), player: 'O'),
+    );
+    setState(() {
+      board[px][py] = 'O';
+      if (_checkWin(px, py, 'O')) {
+        _showLearnDialog('O');
+      } else {
+        currentPlayer = 'X';
+      }
+    });
   }
 
-  /// 금수(禁手) 판정: 열린 3목·열린 4목·6목 이상 체크
+  /// 학습 다이얼로그 호출
+  void _showLearnDialog(String winner) {
+    showDialog(
+      context: context,
+      barrierDismissible: false,
+      builder:
+          (ctx) => AlertDialog(
+            title: Text('🎉 $winner 승리!'),
+            content: const Text('학습시키시겠습니까?'),
+            actions: [
+              TextButton(
+                onPressed: () {
+                  Navigator.of(ctx).pop();
+                  _startLearning();
+                },
+                child: const Text('학습하기'),
+              ),
+              TextButton(
+                onPressed: () {
+                  Navigator.of(ctx).pop();
+                  _resetBoard();
+                },
+                child: const Text('다시 시작'),
+              ),
+            ],
+          ),
+    );
+  }
+
+  /// 즉시 학습 및 시각화
+  Future<void> _startLearning() async {
+    onAIDefeat(
+      episode.map((m) => m.point).toList(),
+      aiLevel,
+      board
+          .map((r) => r.map((c) => c == '' ? 0 : (c == 'X' ? 1 : 2)).toList())
+          .toList(),
+    );
+    final risks = scoreSteps.last.riskScores;
+    setState(() {
+      for (var i = 0; i < boardSize; i++) {
+        for (var j = 0; j < boardSize; j++) {
+          learnHighlights[i][j] = risks[i][j] > 0;
+        }
+      }
+    });
+    final learned = <String>[];
+    for (var i = 0; i < boardSize; i++) {
+      for (var j = 0; j < boardSize; j++) {
+        if (learnHighlights[i][j]) learned.add('(${i + 1},${j + 1})');
+      }
+    }
+    final msg =
+        learned.isNotEmpty
+            ? 'Level $aiLevel: 다음 위치 학습됨\n${learned.join(', ')}'
+            : 'Level $aiLevel: 학습 대상 없음';
+    await showDialog<void>(
+      context: context,
+      builder:
+          (_) => AlertDialog(
+            title: const Text('학습 정보'),
+            content: Text(msg),
+            actions: [
+              TextButton(
+                onPressed: () => Navigator.pop(context),
+                child: const Text('확인'),
+              ),
+            ],
+          ),
+    );
+    final goNext =
+        await showDialog<bool>(
+          context: context,
+          builder:
+              (_) => AlertDialog(
+                title: const Text('학습 완료'),
+                content: const Text('다음 레벨로 넘어가시겠습니까?'),
+                actions: [
+                  TextButton(
+                    onPressed: () => Navigator.pop(context, true),
+                    child: const Text('예'),
+                  ),
+                  TextButton(
+                    onPressed: () => Navigator.pop(context, false),
+                    child: const Text('아니요'),
+                  ),
+                ],
+              ),
+        ) ??
+        false;
+    if (goNext) setState(() => aiLevel++);
+    _resetBoard();
+  }
+
+  /// 보드 초기화
+  void _resetBoard() {
+    setState(() {
+      board = List.generate(boardSize, (_) => List.filled(boardSize, ''));
+      currentPlayer = 'X';
+      episode.clear();
+      scoreSteps.clear();
+      learnHighlights = List.generate(
+        boardSize,
+        (_) => List.filled(boardSize, false),
+      );
+    });
+  }
+
+  /// 금수 판정
   bool isForbiddenMove(int x, int y) {
     final isFirst = currentPlayer == 'X';
     board[x][y] = currentPlayer;
@@ -189,11 +331,10 @@ class _GomokuBoardState extends State<GomokuBoard> {
       [1, -1],
     ];
     for (var d in dirs) {
-      int dx = d[0], dy = d[1];
-      int count = 1, openEnds = 0;
+      int dx = d[0], dy = d[1], cnt = 1, openEnds = 0;
       int nx = x + dx, ny = y + dy;
       while (_inRange(nx, ny) && board[nx][ny] == currentPlayer) {
-        count++;
+        cnt++;
         nx += dx;
         ny += dy;
       }
@@ -201,32 +342,22 @@ class _GomokuBoardState extends State<GomokuBoard> {
       nx = x - dx;
       ny = y - dy;
       while (_inRange(nx, ny) && board[nx][ny] == currentPlayer) {
-        count++;
+        cnt++;
         nx -= dx;
         ny -= dy;
       }
       if (_inRange(nx, ny) && board[nx][ny] == '') openEnds++;
-      if (count > 5) overline = true;
-      if (count == 4 && openEnds == 2) openFour++;
-      if (count == 3 && openEnds == 2) openThree++;
+      if (cnt > 5) overline = true;
+      if (cnt == 4 && openEnds == 2) openFour++;
+      if (cnt == 3 && openEnds == 2) openThree++;
     }
     board[x][y] = '';
-    // 오버라인
-    if (overline) {
-      return gameRule == 'normal' ? true : isFirst;
-    }
-    // 더블포
-    if (openFour >= 2) {
-      return gameRule == 'normal' ? true : isFirst;
-    }
-    // 더블쓰리
-    if (openThree >= 2) {
-      return gameRule == 'normal' ? true : isFirst;
-    }
+    if (overline) return gameRule == 'normal' ? true : isFirst;
+    if (openFour >= 2) return gameRule == 'normal' ? true : isFirst;
+    if (openThree >= 2) return gameRule == 'normal' ? true : isFirst;
     return false;
   }
 
-  /// 휴리스틱 평가
   int _evaluateMove(int x, int y) {
     int score = 0;
     const dirs = [
@@ -287,9 +418,8 @@ class _GomokuBoardState extends State<GomokuBoard> {
     return 0;
   }
 
-  /// 승리 검사
   bool _checkWin(int x, int y, String p) {
-    for (var d in const [
+    for (var d in [
       [0, 1],
       [1, 0],
       [1, 1],
@@ -313,84 +443,13 @@ class _GomokuBoardState extends State<GomokuBoard> {
     return c;
   }
 
-  /// 보드 범위 검사
   bool _inRange(int x, int y) =>
       x >= 0 && y >= 0 && x < boardSize && y < boardSize;
-
-  /// 승리 메시지 표시
-  void _showWinMessage(String w) {
-    showGeneralDialog(
-      context: context,
-      barrierDismissible: true,
-      barrierLabel: '',
-      pageBuilder:
-          (ctx, a1, a2) => SafeArea(
-            child: Stack(
-              children: [
-                Positioned(
-                  bottom: 30,
-                  left: 20,
-                  right: 20,
-                  child: Material(
-                    borderRadius: BorderRadius.circular(12),
-                    elevation: 8,
-                    child: Padding(
-                      padding: const EdgeInsets.all(20.0),
-                      child: Column(
-                        mainAxisSize: MainAxisSize.min,
-                        children: [
-                          Text(
-                            '🎉 \$w 승리!',
-                            style: const TextStyle(
-                              fontSize: 18,
-                              fontWeight: FontWeight.bold,
-                            ),
-                          ),
-                          const SizedBox(height: 12),
-                          TextButton(
-                            onPressed: () {
-                              Navigator.pop(context);
-                              _resetBoard();
-                            },
-                            child: const Text('다시 시작'),
-                          ),
-                        ],
-                      ),
-                    ),
-                  ),
-                ),
-              ],
-            ),
-          ),
-    );
-  }
-
-  /// 보드 초기화
-  void _resetBoard() {
-    setState(() {
-      board = List.generate(boardSize, (_) => List.filled(boardSize, ''));
-      currentPlayer = 'X';
-      episode.clear();
-    });
-  }
-
-  /// AI 패배 처리 및 학습
-  void _onAIDefeat() {
-    setState(() => aiLevel++);
-    final moves = episode.map((m) => m.point).toList();
-    final intBoard =
-        board
-            .map((r) => r.map((c) => c == '' ? 0 : (c == 'X' ? 1 : 2)).toList())
-            .toList();
-    onAIDefeat(moves, aiLevel, intBoard);
-    episode.clear();
-    _showWinMessage('X');
-  }
 
   @override
   Widget build(BuildContext context) {
     return Scaffold(
-      appBar: AppBar(title: Text('오목 게임 (Level \$aiLevel)')),
+      appBar: AppBar(title: Text('오목 게임 (Level $aiLevel)')),
       body: Padding(
         padding: const EdgeInsets.all(8.0),
         child: GridView.builder(
@@ -403,19 +462,50 @@ class _GomokuBoardState extends State<GomokuBoard> {
             final y = index % boardSize;
             return GestureDetector(
               onTap: () => handleTap(x, y),
-              child: Container(
-                decoration: BoxDecoration(
-                  border: Border.all(color: Colors.black12),
-                ),
-                child: Center(
-                  child: Text(
-                    board[x][y],
-                    style: const TextStyle(
-                      fontSize: 20,
-                      fontWeight: FontWeight.bold,
+              child: Stack(
+                children: [
+                  // 기본 셀
+                  Container(
+                    decoration: BoxDecoration(
+                      border: Border.all(color: Colors.black12),
+                    ),
+                    child: Center(
+                      child: Text(
+                        board[x][y],
+                        style: const TextStyle(
+                          fontSize: 20,
+                          fontWeight: FontWeight.bold,
+                        ),
+                      ),
                     ),
                   ),
-                ),
+                  // 학습 하이라이트
+                  if (learnHighlights[x][y])
+                    Positioned.fill(
+                      child: Container(
+                        color: Colors.redAccent.withOpacity(0.2),
+                      ),
+                    ),
+                  // 리플레이 시 AI 점수
+                  if (isReplaying &&
+                      replayStep < episode.length &&
+                      episode[replayStep].player == 'O' &&
+                      scoreSteps[aiReplayIndex].riskScores[x][y] > 0)
+                    Positioned(
+                      bottom: 2,
+                      right: 2,
+                      child: Text(
+                        scoreSteps[aiReplayIndex].totalScores[x][y]
+                            .toInt()
+                            .toString(),
+                        style: const TextStyle(
+                          fontSize: 10,
+                          color: Colors.redAccent,
+                          fontWeight: FontWeight.bold,
+                        ),
+                      ),
+                    ),
+                ],
               ),
             );
           },
