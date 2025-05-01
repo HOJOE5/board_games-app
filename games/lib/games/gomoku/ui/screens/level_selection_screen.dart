@@ -2,11 +2,10 @@
 
 import 'package:flutter/material.dart';
 import 'package:shared_preferences/shared_preferences.dart';
-import 'gomoku_board_screen.dart';
+import 'gomoku_board_screen.dart'; // GomokuBoardScreen으로 연결
 
-/// 레벨 선택 화면
 class LevelSelectionScreen extends StatefulWidget {
-  const LevelSelectionScreen({Key? key}) : super(key: key);
+  const LevelSelectionScreen({super.key});
 
   @override
   _LevelSelectionScreenState createState() => _LevelSelectionScreenState();
@@ -14,7 +13,7 @@ class LevelSelectionScreen extends StatefulWidget {
 
 class _LevelSelectionScreenState extends State<LevelSelectionScreen> {
   int selectedLevel = 1;
-  int unlockedLevel = 1;
+  int unlockedMax = 1; // SharedPreferences에서 불러온 최대 레벨
 
   @override
   void initState() {
@@ -25,9 +24,12 @@ class _LevelSelectionScreenState extends State<LevelSelectionScreen> {
   Future<void> _loadUnlockedLevel() async {
     final prefs = await SharedPreferences.getInstance();
     setState(() {
-      unlockedLevel = prefs.getInt('unlockedLevel') ?? 1;
-      // selectedLevel은 기본적으로 1, 최대 unlockedLevel 까지 조정
-      if (selectedLevel > unlockedLevel) selectedLevel = unlockedLevel;
+      // 저장된 'unlockedLevel' 이 없으면 1로 초기화
+      unlockedMax = prefs.getInt('unlockedLevel') ?? 1;
+      // 현재 선택 레벨이 최대치보다 크면 clamp
+      if (selectedLevel > unlockedMax) {
+        selectedLevel = unlockedMax;
+      }
     });
   }
 
@@ -36,25 +38,28 @@ class _LevelSelectionScreenState extends State<LevelSelectionScreen> {
     return Scaffold(
       appBar: AppBar(title: const Text('AI 레벨 선택')),
       body: Padding(
-        padding: const EdgeInsets.all(16.0),
+        padding: const EdgeInsets.all(16),
         child: Column(
           mainAxisAlignment: MainAxisAlignment.center,
           children: [
-            Text(
-              'AI 레벨: $selectedLevel (최대 $unlockedLevel 레벨까지 선택 가능)',
-              style: const TextStyle(fontSize: 20),
-            ),
+            Text('AI 레벨: $selectedLevel', style: const TextStyle(fontSize: 24)),
+            const SizedBox(height: 16),
             Slider(
               value: selectedLevel.toDouble(),
               min: 1,
-              max: unlockedLevel.toDouble(),
-              divisions: unlockedLevel - 1,
-              label: '$selectedLevel',
-              onChanged: (v) => setState(() => selectedLevel = v.toInt()),
+              max: unlockedMax.toDouble(),
+              // unlockedMax가 1일 땐 divisions를 null로 주면 슬라이더가 부드럽게 동작합니다
+              divisions: unlockedMax > 1 ? unlockedMax - 1 : null,
+              label: selectedLevel.toString(),
+              onChanged:
+                  (v) => setState(() {
+                    selectedLevel = v.toInt();
+                  }),
             ),
             const SizedBox(height: 24),
             ElevatedButton(
               onPressed: () {
+                // 선택한 레벨로 게임 화면 열기
                 Navigator.push(
                   context,
                   MaterialPageRoute(

@@ -1,14 +1,14 @@
 // lib/games/gomoku/models/score_step.dart
 
-/// AI 한 수 선택 시 계산된 점수 행렬
+/// AI가 특정 수를 계산할 때 기록한 점수 행렬을 담는 모델입니다.
 class ScoreStep {
-  /// 휴리스틱(기본) 점수
+  /// 휴리스틱(기본) 점수 행렬
   final List<List<double>> baseScores;
 
-  /// 패턴 위험도 점수
+  /// 패턴 기반 리스크 점수 행렬
   final List<List<double>> riskScores;
 
-  /// 난이도 계수 반영 후 최종 점수
+  /// 휴리스틱과 리스크를 합산한 최종 점수 행렬
   final List<List<double>> totalScores;
 
   ScoreStep({
