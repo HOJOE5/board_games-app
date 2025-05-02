@@ -1,4 +1,3 @@
-// lib/ui/home_screen.dart
 import 'package:flutter/material.dart';
 // 상대 경로로 수정
 import '../games/gomoku/ui/screens/level_selection_screen.dart';

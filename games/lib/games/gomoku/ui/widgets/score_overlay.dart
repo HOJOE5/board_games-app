@@ -7,7 +7,7 @@ import 'package:flutter/material.dart';
 class ScoreOverlay extends StatelessWidget {
   final int score;
 
-  const ScoreOverlay({Key? key, required this.score}) : super(key: key);
+  const ScoreOverlay({super.key, required this.score});
 
   @override
   Widget build(BuildContext context) {

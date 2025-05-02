@@ -54,11 +54,15 @@ class _GomokuBoardScreenState extends State<GomokuBoardScreen> {
   Future<void> _initGameFlow() async {
     final rule = await showRuleSelectionDialog(context);
     if (rule == null) return;
-    setState(() => gameRule = rule);
+    setState(() {
+      gameRule = rule;
+    });
 
     final first = await showFirstMoveDialog(context);
     if (first == null) return;
-    setState(() => currentPlayer = first);
+    setState(() {
+      currentPlayer = first;
+    });
 
     if (currentPlayer == 'O') {
       Future.delayed(const Duration(milliseconds: 500), _aiMove);
@@ -140,7 +144,9 @@ class _GomokuBoardScreenState extends State<GomokuBoardScreen> {
     );
 
     if (bestPoint == null) {
-      setState(() => currentPlayer = 'X');
+      setState(() {
+        currentPlayer = 'X';
+      });
       return;
     }
     final px = bestPoint.x, py = bestPoint.y;
@@ -186,7 +192,9 @@ class _GomokuBoardScreenState extends State<GomokuBoardScreen> {
 
     final advance = await showNextLevelDialog(context, aiLevel);
     if (advance == true) {
-      setState(() => aiLevel++);
+      setState(() {
+        aiLevel++;
+      });
       final prefs = await SharedPreferences.getInstance();
       await prefs.setInt('unlockedLevel', aiLevel);
     }

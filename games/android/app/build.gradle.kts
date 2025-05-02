@@ -20,20 +20,19 @@ android {
     }
 
     defaultConfig {
-        // TODO: Specify your own unique Application ID (https://developer.android.com/studio/build/application-id.html).
         applicationId = "com.example.gomoku_ui"
-        // You can update the following values to match your application needs.
-        // For more information, see: https://flutter.dev/to/review-gradle-config.
-        minSdk = flutter.minSdkVersion
+
+        // tflite_flutter 요구사항(API 26 이상) 충족
+        minSdk = 26
         targetSdk = flutter.targetSdkVersion
+
         versionCode = flutter.versionCode
         versionName = flutter.versionName
     }
 
     buildTypes {
         release {
-            // TODO: Add your own signing config for the release build.
-            // Signing with the debug keys for now, so `flutter run --release` works.
+            // 아직 디버그 키를 사용 중이라, 릴리즈 서명 설정 필요 시 여기 수정
             signingConfig = signingConfigs.getByName("debug")
         }
     }

@@ -25,7 +25,7 @@ class GomokuBoard extends StatelessWidget {
   final void Function(int x, int y) onCellTap;
 
   const GomokuBoard({
-    Key? key,
+    super.key,
     required this.board,
     required this.learnHighlights,
     required this.isReplaying,
@@ -33,7 +33,7 @@ class GomokuBoard extends StatelessWidget {
     required this.aiReplayIndex,
     required this.scoreSteps,
     required this.onCellTap,
-  }) : super(key: key);
+  });
 
   @override
   Widget build(BuildContext context) {
