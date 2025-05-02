@@ -1,6 +1,7 @@
+// lib/ui/home_screen.dart
 import 'package:flutter/material.dart';
-// 상대 경로로 수정
-import '../games/gomoku/ui/screens/level_selection_screen.dart';
+// *** 변경된 Import 경로 ***
+import '../screens/ai_selection_screen.dart'; // AI 선택 화면 Import
 
 class HomeScreen extends StatelessWidget {
   const HomeScreen({super.key});
@@ -15,9 +16,14 @@ class HomeScreen extends StatelessWidget {
           onPressed: () {
             Navigator.push(
               context,
-              MaterialPageRoute(builder: (_) => const LevelSelectionScreen()),
+              // *** 변경된 네비게이션 대상 ***
+              MaterialPageRoute(builder: (_) => const AISelectionScreen()),
             );
           },
+          style: ElevatedButton.styleFrom(
+            padding: const EdgeInsets.symmetric(horizontal: 40, vertical: 20),
+            textStyle: const TextStyle(fontSize: 18),
+          ),
         ),
       ),
     );

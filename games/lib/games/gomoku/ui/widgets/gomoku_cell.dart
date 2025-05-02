@@ -9,8 +9,7 @@ class GomokuCell extends StatelessWidget {
   final String symbol;
   final bool highlight;
 
-  const GomokuCell({Key? key, required this.symbol, this.highlight = false})
-    : super(key: key);
+  const GomokuCell({super.key, required this.symbol, this.highlight = false});
 
   @override
   Widget build(BuildContext context) {

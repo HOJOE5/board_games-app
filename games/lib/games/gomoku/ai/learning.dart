@@ -1,49 +1,37 @@
 // lib/games/gomoku/ai/learning.dart
+import 'dart:math';
+import 'pattern_learning.dart'; // LearnTarget, processLoss 등
+// DatabaseHelper는 여기서 직접 사용하지 않음 (pattern_learning 내부에서 사용)
 
-import 'dart:math'; // Point를 사용하기 위해 필요합니다.
-import 'pattern_learning.dart'; // LearnTarget, processLoss 등을 불러옵니다.
-
-/// AI가 패배했을 때 호출되는 콜백
-/// [aiMoves]: AI가 두었던 순서대로 좌표 리스트
-/// [aiLevel]: 현재 AI 레벨
-/// [board]: 0=빈칸, 1=X, 2=O 로 매핑된 2D 보드 상태
-void onAIDefeat(List<Point<int>> aiMoves, int aiLevel, List<List<int>> board) {
+/// AI가 패배했을 때 호출 (profileId 추가 및 async 변경)
+Future<void> onAIDefeat(int profileId, List<Point<int>> aiMoves, int aiLevel,
+    List<List<int>> board) async {
   final targets = <LearnTarget>[];
 
+  // 레벨별 학습 대상 수 결정 로직 (기존과 동일)
   if (aiLevel <= 10 && aiMoves.isNotEmpty) {
-    // 레벨 1~10: 마지막 수만 가중치 -1.0
-    targets.add(LearnTarget(aiMoves.last.x, aiMoves.last.y, -1.0));
+    targets.add(LearnTarget(aiMoves.last.x, aiMoves.last.y, -1.0)); // 가중치 조정 가능
   } else if (aiLevel <= 20 && aiMoves.length >= 2) {
-    // 레벨 11~20: 최근 2수 가중치 -2.0, -1.0
-    targets.add(
-      LearnTarget(aiMoves[aiMoves.length - 1].x, aiMoves.last.y, -2.0),
-    );
-    targets.add(
-      LearnTarget(
-        aiMoves[aiMoves.length - 2].x,
-        aiMoves[aiMoves.length - 2].y,
-        -1.0,
-      ),
-    );
+    targets.add(LearnTarget(
+        aiMoves[aiMoves.length - 1].x, aiMoves.last.y, -1.5)); // 예: 가중치 조정
+    targets.add(LearnTarget(
+        aiMoves[aiMoves.length - 2].x, aiMoves[aiMoves.length - 2].y, -0.8));
   } else if (aiMoves.length >= 3) {
-    // 레벨 21 이상: 최근 3수 가중치 -3.0, -2.0, -1.0
-    targets.add(LearnTarget(aiMoves.last.x, aiMoves.last.y, -3.0));
-    targets.add(
-      LearnTarget(
-        aiMoves[aiMoves.length - 2].x,
-        aiMoves[aiMoves.length - 2].y,
-        -2.0,
-      ),
-    );
-    targets.add(
-      LearnTarget(
-        aiMoves[aiMoves.length - 3].x,
-        aiMoves[aiMoves.length - 3].y,
-        -1.0,
-      ),
-    );
+    targets.add(LearnTarget(aiMoves.last.x, aiMoves.last.y, -2.0)); // 예: 가중치 조정
+    targets.add(LearnTarget(
+        aiMoves[aiMoves.length - 2].x, aiMoves[aiMoves.length - 2].y, -1.2));
+    targets.add(LearnTarget(
+        aiMoves[aiMoves.length - 3].x, aiMoves[aiMoves.length - 3].y, -0.6));
+  } else if (aiMoves.isNotEmpty) {
+    // 혹시 모를 예외 처리 (aiMoves가 1~2개인데 레벨이 20 초과)
+    targets.add(LearnTarget(aiMoves.last.x, aiMoves.last.y, -1.0));
   }
 
-  // 패턴 학습 로직에 전달
-  processLoss(targets, board);
+  if (targets.isNotEmpty) {
+    // 패턴 학습 로직 호출 시 profileId 전달 (await 사용)
+    await processLoss(profileId, targets, board);
+  } else {
+    print(
+        "No learning targets generated for AI $profileId (aiMoves count: ${aiMoves.length})");
+  }
 }

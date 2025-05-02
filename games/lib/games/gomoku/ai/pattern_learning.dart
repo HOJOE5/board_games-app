@@ -1,4 +1,6 @@
 // lib/games/gomoku/ai/pattern_learning.dart
+import 'dart:math';
+import '../../../../database/database_helper.dart'; // DB 헬퍼 import
 
 /// 학습 대상 한 수(복기 포인트)
 class LearnTarget {
@@ -7,23 +9,26 @@ class LearnTarget {
   LearnTarget(this.x, this.y, this.weight);
 }
 
-/// 정규화된 패턴(key) → 실패 가중치 누적 맵
-final Map<String, double> patternFailScores = {};
+// DB 헬퍼 인스턴스 (싱글톤 사용)
+final _dbHelper = DatabaseHelper();
 
-/// 보드에서 (x, y)를 중심으로 size×size 패턴을 추출합니다.
+/// 보드에서 (x, y)를 중심으로 size×size 패턴을 추출
 /// 비어 있는 부분은 -9로 채웁니다.
+// static 제거
 List<List<int>> extractPattern(
   int x,
   int y,
   List<List<int>> board, {
-  int size = 5,
+  int size = 5, // 5x5 패턴 사용
 }) {
+  final N = board.length;
   final half = size ~/ 2;
   final pattern = List.generate(size, (_) => List.filled(size, -9));
   for (var dx = -half; dx <= half; dx++) {
     for (var dy = -half; dy <= half; dy++) {
-      final nx = x + dx, ny = y + dy;
-      if (nx >= 0 && ny >= 0 && nx < board.length && ny < board.length) {
+      final nx = x + dx;
+      final ny = y + dy;
+      if (nx >= 0 && ny >= 0 && nx < N && ny < N) {
         pattern[dx + half][dy + half] = board[nx][ny];
       }
     }
@@ -31,8 +36,8 @@ List<List<int>> extractPattern(
   return pattern;
 }
 
-/// 패턴을 회전·반전시킨 모든 변형을 문자열로 만들고,
-/// 사전 순으로 최소인 키를 선택합니다.
+/// 패턴을 회전·반전시킨 모든 변형 중 사전식 최소 키 반환
+// static 제거
 String normalizePattern(List<List<int>> p) {
   List<String> variants = [];
   int n = p.length;
@@ -44,35 +49,50 @@ String normalizePattern(List<List<int>> p) {
       m.map((row) => row.reversed.toList()).toList();
 
   String flatten(List<List<int>> m) =>
-      m.expand((r) => r).map((e) => e.toString()).join();
+      m.expand((r) => r).map((e) => e.toString()).join(','); // 구분자 추가
 
-  var cur = p;
+  var currentPattern = p;
   for (var i = 0; i < 4; i++) {
-    variants.add(flatten(cur));
-    variants.add(flatten(flipH(cur)));
-    cur = rotate(cur);
+    variants.add(flatten(currentPattern));
+    variants.add(flatten(flipH(currentPattern)));
+    currentPattern = rotate(currentPattern);
   }
   variants.sort();
   return variants.first;
 }
 
-/// 단일 패턴 키에 실패 가중치를 누적합니다.
-void learnFromPattern(String key, double weight) {
-  patternFailScores[key] = (patternFailScores[key] ?? 0) + weight;
+/// 단일 패턴 키에 실패 가중치를 DB에 누적 (Upsert)
+Future<void> learnFromPattern(int profileId, String key, double weight) async {
+  // DB에서 현재 점수 조회
+  double currentScore =
+      await _dbHelper.getLearningPatternScore(profileId, key) ?? 0.0;
+  double newScore = currentScore + weight;
+
+  // 점수가 너무 낮아지는 것 방지 (선택 사항)
+  newScore = max(-20.0, newScore); // 예: 최소 점수 -20점으로 제한
+
+  await _dbHelper.upsertLearningPattern(profileId, key, newScore);
+  // print("Learned pattern for AI $profileId: Key=$key, NewScore=$newScore (Weight=$weight, Prev=$currentScore)");
 }
 
-/// 복기 대상 리스트로부터 한 번에 학습을 진행합니다.
-void processLoss(List<LearnTarget> targets, List<List<int>> board) {
+/// 복기 대상 리스트로부터 학습 진행 (DB 사용)
+Future<void> processLoss(
+    int profileId, List<LearnTarget> targets, List<List<int>> board) async {
+  // print("Processing loss for AI $profileId with ${targets.length} targets...");
   for (var t in targets) {
     final pat = extractPattern(t.x, t.y, board);
     final key = normalizePattern(pat);
-    learnFromPattern(key, t.weight);
+    await learnFromPattern(profileId, key, t.weight);
   }
+  // print("Finished processing loss for AI $profileId.");
 }
 
-/// 특정 지점(x, y)의 위험도(실패 점수)를 조회합니다.
-/// 학습되지 않은 패턴은 0.0을 반환합니다.
-double getPatternRisk(int x, int y, List<List<int>> board) {
+// --- getPatternRiskFromDB 함수는 이제 AIEngine에서 직접 사용되지 않으므로 제거하거나 주석처리해도 무방 ---
+// (learnFromPattern 내부에서 사용하도록 getLearningPatternScore 호출 방식으로 변경됨)
+/*
+Future<double> getPatternRiskFromDB(int profileId, int x, int y, List<List<int>> board) async {
   final key = normalizePattern(extractPattern(x, y, board));
-  return patternFailScores[key] ?? 0.0;
+  final score = await _dbHelper.getLearningPatternScore(profileId, key);
+  return score ?? 0.0;
 }
+*/

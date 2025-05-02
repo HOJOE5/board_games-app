@@ -6,7 +6,7 @@ void main() {
 }
 
 class BoardGamesApp extends StatelessWidget {
-  const BoardGamesApp({Key? key}) : super(key: key);
+  const BoardGamesApp({super.key});
 
   @override
   Widget build(BuildContext context) {
