@@ -2,7 +2,6 @@
 import 'package:flutter/material.dart';
 import 'dart:math'; // Point 사용
 // import '../../models/score_step.dart'; // 필요 시 사용
-import 'gomoku_cell.dart';
 
 class GomokuBoard extends StatelessWidget {
   final List<List<String>> board;
@@ -32,42 +31,53 @@ class GomokuBoard extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    // GomokuBoard 위젯은 CustomPaint를 사용하여 보드를 그립니다.
+    // LayoutBuilder를 사용하여 위젯의 실제 크기를 얻음
     return LayoutBuilder(
-      // 부모 위젯의 크기를 얻기 위해 사용
       builder: (context, constraints) {
-        // 사용 가능한 최대 크기 계산 (정사각형 유지)
+        // 사용 가능한 최대 크기 (정사각형)
         final double availableSize =
             constraints.maxWidth < constraints.maxHeight
                 ? constraints.maxWidth
                 : constraints.maxHeight;
-        // 각 셀의 크기 계산 (보드 크기 + 1개의 간격 기준)
-        final double cellSize = availableSize / (boardSize); // 간격을 포함한 셀 크기
 
+        // GestureDetector: 탭 이벤트 감지
         return GestureDetector(
           onTapUp: (details) {
-            // 탭 좌표를 보드 좌표로 변환
-            // Offset(0,0)이 좌상단 꼭지점이라고 가정
-            // 셀 중앙이 아닌 격자선 교차점을 탭한다고 가정
-            final double logicalX = details.localPosition.dx / cellSize;
-            final double logicalY = details.localPosition.dy / cellSize;
+            // ### onTapUp 콜백 내부에서 크기 및 간격 재계산 ###
+            final double cellSize = availableSize / boardSize;
+            final double boardPadding = cellSize / 2;
+            final double boardActualSize = availableSize - (boardPadding * 2);
+            final double gridSpacing = (boardSize > 1)
+                ? boardActualSize / (boardSize - 1)
+                : boardActualSize;
+            // ##############################################
 
-            // 가장 가까운 교차점 인덱스 찾기
-            final int x = logicalX.round();
-            final int y = logicalY.round();
+            // 탭 위치 -> 보드 좌표 변환 (수정된 계산 로직)
+            double relativeX = details.localPosition.dx - boardPadding;
+            double relativeY = details.localPosition.dy - boardPadding;
 
-            // 탭한 위치가 유효한 교차점 범위 내에 있는지 확인
+            int x = 0;
+            int y = 0;
+            if (gridSpacing > 0) {
+              x = (relativeX / gridSpacing).round();
+              y = (relativeY / gridSpacing).round();
+            }
+
+            // 계산된 좌표가 유효 범위 내인지 확인
             if (x >= 0 && x < boardSize && y >= 0 && y < boardSize) {
+              print(
+                  "Tap Position: ${details.localPosition}, Calculated Board Coords: ($x, $y)");
               onCellTap(x, y); // 콜백 호출
+            } else {
+              print(
+                  "Tap out of bounds: ${details.localPosition}, Calculated: ($x, $y)");
             }
           },
+          // CustomPaint: 보드 그리기
           child: CustomPaint(
             size: Size(availableSize, availableSize), // 위젯 크기 지정
-            // --- CustomPainter에 boardSize 전달 ---
+            // Painter에는 boardSize만 전달해도 내부에서 계산 가능
             painter: _GomokuBoardPainter(board: board, boardSize: boardSize),
-            // ------------------------------------
-            // TODO: 필요 시 ForegroundPainter로 돌, 하이라이트 등을 그릴 수 있음
-            // foregroundPainter: _GomokuStonesPainter(...)
           ),
         );
       },

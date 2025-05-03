@@ -134,7 +134,9 @@ class _GomokuBoardScreenState extends State<GomokuBoardScreen> {
         _isAiThinking ||
         board[x][y] != '' ||
         currentPlayer != 'X' ||
-        _isLoading) return;
+        _isLoading) {
+      return;
+    }
 
     // TODO: 금수 처리 로직 추가 (isForbiddenMove 호출)
     // if (isForbiddenMove(x, y)) { ... return; }
@@ -202,13 +204,13 @@ class _GomokuBoardScreenState extends State<GomokuBoardScreen> {
       setState(() {
         if (bestPoint != null) {
           // AI가 수를 찾았을 경우
-          final px = bestPoint!.x;
-          final py = bestPoint!.y;
+          final px = bestPoint.x;
+          final py = bestPoint.y;
           // 해당 위치가 유효한지 재확인 (범위 내, 빈 칸)
           if (_inRange(px, py) && board[px][py] == '') {
             // AI 수 기록 및 보드 업데이트
             episode.add(Move(
-                stateKey: hashBoard(board), point: bestPoint!, player: 'O'));
+                stateKey: hashBoard(board), point: bestPoint, player: 'O'));
             board[px][py] = 'O';
 
             // AI 승리 또는 무승부 확인
@@ -281,9 +283,9 @@ class _GomokuBoardScreenState extends State<GomokuBoardScreen> {
     }
   }
 
-  // 학습 로직 호출 (DB 연동)
+  // 학습 로직 호출 (DB 연동 반영)
   Future<void> _triggerLearning() async {
-    // async 추가됨
+    // async 확인
     if (currentProfile == null || episode.isEmpty || !mounted) return;
 
     print(
@@ -292,21 +294,23 @@ class _GomokuBoardScreenState extends State<GomokuBoardScreen> {
     // AI가 둔 수만 필터링
     final aiMoves =
         episode.where((m) => m.player == 'O').map((m) => m.point).toList();
+    // -------------------------
 
     if (aiMoves.isNotEmpty) {
-      // 보드를 0/1/2 정수 배열로 변환
+      // --- 올바른 keyBoard 선언 ---
       final keyBoard = board
           .map((row) => row
               .map((cell) => cell == '' ? 0 : (cell == 'X' ? 1 : 2))
               .toList())
           .toList();
-
+      // --------------------------
       try {
-        // learning.dart의 onAIDefeat 호출 (DB 저장 로직 포함됨)
+        // onAIDefeat 호출 시 profileId 전달 및 await 사용
         await onAIDefeat(widget.aiProfileId, aiMoves,
-            currentProfile!.currentLevel, keyBoard); // await 추가
+            currentProfile!.currentLevel, keyBoard);
         print("Learning process completed for AI ${widget.aiProfileId}");
         // TODO: 학습 결과 시각화 필요 시 여기에 로직 추가
+        // 예: setState(() { ... learnHighlights 업데이트 ... });
       } catch (e) {
         print("Error during learning process: $e");
         // TODO: 사용자에게 오류 알림 (선택 사항)

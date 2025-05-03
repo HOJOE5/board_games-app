@@ -9,17 +9,15 @@ class LearnTarget {
   LearnTarget(this.x, this.y, this.weight);
 }
 
-// DB 헬퍼 인스턴스 (싱글톤 사용)
+// DB 헬퍼 인스턴스
 final _dbHelper = DatabaseHelper();
 
-/// 보드에서 (x, y)를 중심으로 size×size 패턴을 추출
-/// 비어 있는 부분은 -9로 채웁니다.
-// static 제거
+/// 보드에서 (x, y)를 중심으로 size×size 패턴을 추출 (Top-level 함수)
 List<List<int>> extractPattern(
   int x,
   int y,
   List<List<int>> board, {
-  int size = 5, // 5x5 패턴 사용
+  int size = 5,
 }) {
   final N = board.length;
   final half = size ~/ 2;
@@ -36,8 +34,7 @@ List<List<int>> extractPattern(
   return pattern;
 }
 
-/// 패턴을 회전·반전시킨 모든 변형 중 사전식 최소 키 반환
-// static 제거
+/// 패턴을 회전·반전시킨 모든 변형 중 사전식 최소 키 반환 (Top-level 함수)
 String normalizePattern(List<List<int>> p) {
   List<String> variants = [];
   int n = p.length;
@@ -49,7 +46,7 @@ String normalizePattern(List<List<int>> p) {
       m.map((row) => row.reversed.toList()).toList();
 
   String flatten(List<List<int>> m) =>
-      m.expand((r) => r).map((e) => e.toString()).join(','); // 구분자 추가
+      m.expand((r) => r).map((e) => e.toString()).join(',');
 
   var currentPattern = p;
   for (var i = 0; i < 4; i++) {
@@ -66,11 +63,12 @@ Future<void> learnFromPattern(int profileId, String key, double weight) async {
   // DB에서 현재 점수 조회
   double currentScore =
       await _dbHelper.getLearningPatternScore(profileId, key) ?? 0.0;
-  double newScore = currentScore + weight;
+  double newScore = currentScore + weight; // 기존 점수에 가중치 추가
 
-  // 점수가 너무 낮아지는 것 방지 (선택 사항)
-  newScore = max(-20.0, newScore); // 예: 최소 점수 -20점으로 제한
+  // 최소 점수 제한 (선택 사항, 너무 낮아지는 것 방지)
+  newScore = max(-20.0, newScore);
 
+  // DB에 새 점수 업데이트 또는 삽입
   await _dbHelper.upsertLearningPattern(profileId, key, newScore);
   // print("Learned pattern for AI $profileId: Key=$key, NewScore=$newScore (Weight=$weight, Prev=$currentScore)");
 }
@@ -82,17 +80,8 @@ Future<void> processLoss(
   for (var t in targets) {
     final pat = extractPattern(t.x, t.y, board);
     final key = normalizePattern(pat);
+    // DB에 저장하는 함수 호출 (await 사용)
     await learnFromPattern(profileId, key, t.weight);
   }
   // print("Finished processing loss for AI $profileId.");
 }
-
-// --- getPatternRiskFromDB 함수는 이제 AIEngine에서 직접 사용되지 않으므로 제거하거나 주석처리해도 무방 ---
-// (learnFromPattern 내부에서 사용하도록 getLearningPatternScore 호출 방식으로 변경됨)
-/*
-Future<double> getPatternRiskFromDB(int profileId, int x, int y, List<List<int>> board) async {
-  final key = normalizePattern(extractPattern(x, y, board));
-  final score = await _dbHelper.getLearningPatternScore(profileId, key);
-  return score ?? 0.0;
-}
-*/
