@@ -68,6 +68,11 @@ Future<void> learnFromPattern(int profileId, String key, double weight) async {
   // 최소 점수 제한 (선택 사항, 너무 낮아지는 것 방지)
   newScore = max(-20.0, newScore);
 
+  // --- 로그 추가 ---
+  print(
+      "[Learn] AI ID: $profileId | Pattern: $key | Weight: ${weight.toStringAsFixed(2)} | PrevScore: ${currentScore.toStringAsFixed(2)} | NewScore: ${newScore.toStringAsFixed(2)}");
+  // -------------
+
   // DB에 새 점수 업데이트 또는 삽입
   await _dbHelper.upsertLearningPattern(profileId, key, newScore);
   // print("Learned pattern for AI $profileId: Key=$key, NewScore=$newScore (Weight=$weight, Prev=$currentScore)");

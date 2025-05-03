@@ -71,6 +71,13 @@ Future<Point<int>?> _calculateBestMoveIsolate(
       // 합산 총점 (리스크 가중치 조정 - 예: 5000 -> 7000)
       double t = b * heuristicCoeff - r * riskCoeff * 7000;
 
+      // --- 로그 추가 (학습된 패턴에 대해서만) ---
+      if (r != 0.0) {
+        // 소수점 1자리까지만 출력 (간결하게)
+        print(
+            "[AI Eval] Move($x,$y): H=${b.toStringAsFixed(1)}, R=${r.toStringAsFixed(1)} (Key=${patternKey.substring(0, min(10, patternKey.length))}...), T=${t.toStringAsFixed(1)}");
+      }
+
       // 랜덤성 추가 (기존 로직 유지 또는 개선)
       if (aiLevel <= 1 && rnd.nextDouble() < 0.6) {
         // Level 1 랜덤 확률 증가
@@ -110,7 +117,11 @@ class AIEngine {
       final dbHelper = DatabaseHelper();
       final Map<String, double> patterns =
           await dbHelper.getAllLearningPatterns(aiProfileId);
-      // print("AI Engine: Loaded ${patterns.length} learning patterns for profile $aiProfileId");
+
+      // --- 로그 추가 ---
+      print(
+          "[AI Think] Loaded ${patterns.length} learned patterns for AI ID: $aiProfileId");
+      // -------------
 
       final params = _IsolateParams(
         board: board,
